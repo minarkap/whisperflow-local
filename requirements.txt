@@ -1,0 +1,5 @@
+mlx-voxtral
+sounddevice
+numpy
+pynput
+pyperclip

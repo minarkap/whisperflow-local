@@ -1,0 +1,29 @@
+[hotkey]
+# Combinación de teclas para push-to-talk (mantener pulsado para grabar)
+# Teclas modificadoras válidas: ctrl, alt, shift, cmd
+# Tecla principal: cualquier tecla o "space", "tab", etc.
+modifiers = ["ctrl", "alt"]
+key = "space"
+
+[audio]
+# Frecuencia de muestreo requerida por Voxtral/Whisper
+sample_rate = 16000
+# Canales (1 = mono)
+channels = 1
+# Dispositivo de entrada (null = micrófono por defecto)
+device = null
+
+[model]
+# Modelo principal de transcripción
+# Opciones: "voxtral-mini-3b" | "whisper-large-v3"
+engine = "voxtral-mini-3b"
+voxtral_repo = "mzbac/voxtral-mini-3b-4bit-mixed"
+whisper_repo = "mlx-community/whisper-large-v3-mlx"
+# Idioma (null = autodetección automática)
+language = "es"
+
+[feedback]
+# Sonido al empezar a grabar
+start_sound = true
+# Sonido al terminar de grabar (antes de transcribir)
+stop_sound = true
