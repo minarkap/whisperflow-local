@@ -1,4 +1,3 @@
-import gc
 import time
 import threading
 import numpy as np
@@ -72,9 +71,6 @@ class Transcriber:
                 text = self._transcribe_whisper(audio, sample_rate)
             else:
                 raise ValueError(f"Engine desconocido: {self.engine}")
-
-            mx.metal.clear_cache()
-            gc.collect()
 
             print(f"Transcripción en {time.time() - t0:.2f}s: {text!r}")
             return text.strip()

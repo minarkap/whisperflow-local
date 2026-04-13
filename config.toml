@@ -20,11 +20,13 @@ qwen3_repo   = "Qwen/Qwen3-ASR-0.6B"
 voxtral_repo = "mzbac/voxtral-mini-3b-4bit-mixed"
 whisper_repo = "mlx-community/whisper-large-v3-turbo"
 # Idioma ("es" = español forzado, "" = autodetección)
-language = "es"
+# "es" = fuerza español (puede manchar siglas inglesas)
+# ""   = autodetect por segmento (mejor para mezcla español+inglés técnico)
+language = ""
 
 [limits]
 # Segundos máximos de grabación antes de cortar automáticamente
-max_record_secs = 60
+max_record_secs = 180
 
 [feedback]
 # Sonido al empezar a grabar
