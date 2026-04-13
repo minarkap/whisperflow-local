@@ -1,4 +1,6 @@
 mlx-voxtral
+mlx-whisper
+mlx-qwen3-asr
 sounddevice
 numpy
 pynput
