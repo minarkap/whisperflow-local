@@ -10,10 +10,9 @@ from paster import paste_text, get_active_app
 
 
 def beep(frequency: int = 1000, duration: float = 0.08):
-    """Beep usando afplay con un archivo de audio generado inline."""
-    import subprocess, struct, wave, tempfile, os
+    """Beep usando afplay con un archivo de audio temporal (se borra al terminar)."""
+    import subprocess, struct, wave, tempfile, os, math
     n = int(44100 * duration)
-    import math
     samples = [int(32767 * math.sin(2 * math.pi * frequency * i / 44100)) for i in range(n)]
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         path = f.name
@@ -22,7 +21,13 @@ def beep(frequency: int = 1000, duration: float = 0.08):
         wf.setsampwidth(2)
         wf.setframerate(44100)
         wf.writeframes(struct.pack(f"<{n}h", *samples))
-    subprocess.Popen(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def play_and_delete():
+        subprocess.run(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.unlink(path)
+
+    import threading
+    threading.Thread(target=play_and_delete, daemon=True).start()
 
 
 def load_config(path: Path) -> dict:
