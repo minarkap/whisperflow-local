@@ -116,7 +116,10 @@ def main():
     )
 
     print("WhisperFlow Local arrancado.")
-    print(f"Atajo: {' + '.join(hotkey_cfg['modifiers'])} + {hotkey_cfg['key']}")
+    mods = hotkey_cfg["modifiers"]
+    key_name = hotkey_cfg["key"]
+    atajo = " + ".join(mods + [key_name]) if mods else key_name
+    print(f"Atajo: {atajo}")
     print("Ctrl+C para salir.\n")
 
     listener.start()

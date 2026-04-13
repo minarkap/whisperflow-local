@@ -12,9 +12,15 @@ _MODIFIER_MAP = {
 }
 
 _KEY_MAP = {
-    "space": keyboard.Key.space,
-    "tab":   keyboard.Key.tab,
-    "enter": keyboard.Key.enter,
+    "space":   keyboard.Key.space,
+    "tab":     keyboard.Key.tab,
+    "enter":   keyboard.Key.enter,
+    "alt_r":   keyboard.Key.alt_r,
+    "alt_l":   keyboard.Key.alt_l,
+    "ctrl_r":  keyboard.Key.ctrl_r,
+    "ctrl_l":  keyboard.Key.ctrl_l,
+    "shift_r": keyboard.Key.shift_r,
+    "cmd_r":   keyboard.Key.cmd_r,
 }
 
 
@@ -54,6 +60,9 @@ class HotkeyListener:
     # ------------------------------------------------------------------
 
     def _modifiers_held(self) -> bool:
+        # Sin modificadores configurados → solo la tecla trigger
+        if not self._modifier_sets:
+            return True
         return all(
             any(k in self._held for k in mod_set)
             for mod_set in self._modifier_sets
@@ -76,7 +85,6 @@ class HotkeyListener:
     def _is_trigger(self, key) -> bool:
         if isinstance(self._trigger_key, keyboard.Key):
             return key == self._trigger_key
-        # KeyCode: comparar char
         if isinstance(key, keyboard.KeyCode) and isinstance(self._trigger_key, keyboard.KeyCode):
             return key.char == self._trigger_key.char
         return False

@@ -2,8 +2,8 @@
 # Combinación de teclas para push-to-talk (mantener pulsado para grabar)
 # Teclas modificadoras válidas: ctrl, alt, shift, cmd
 # Tecla principal: cualquier tecla o "space", "tab", etc.
-modifiers = ["ctrl", "alt"]
-key = "space"
+modifiers = []
+key = "alt_r"
 
 [audio]
 # Frecuencia de muestreo requerida por Voxtral/Whisper
