@@ -1,6 +1,8 @@
+import signal
 import sys
 import threading
 import tomllib
+from enum import Enum, auto
 from pathlib import Path
 
 from hotkey import HotkeyListener
@@ -9,40 +11,45 @@ from transcriber import Transcriber
 from paster import paste_text, get_active_app
 
 
+# ── Estado de la máquina ────────────────────────────────────────────────────
+
+class State(Enum):
+    IDLE        = auto()
+    RECORDING   = auto()
+    TRANSCRIBING = auto()
+
+
+# ── Beep ────────────────────────────────────────────────────────────────────
+
 def beep(frequency: int = 1000, duration: float = 0.08):
-    """Beep usando afplay con un archivo de audio temporal (se borra al terminar)."""
-    import subprocess, struct, wave, tempfile, os, math
+    import math, os, struct, subprocess, tempfile, wave
     n = int(44100 * duration)
     samples = [int(32767 * math.sin(2 * math.pi * frequency * i / 44100)) for i in range(n)]
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         path = f.name
     with wave.open(path, "w") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(44100)
+        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(44100)
         wf.writeframes(struct.pack(f"<{n}h", *samples))
 
-    def play_and_delete():
+    def _play():
         subprocess.run(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         os.unlink(path)
 
-    import threading
-    threading.Thread(target=play_and_delete, daemon=True).start()
+    threading.Thread(target=_play, daemon=True).start()
 
 
-def load_config(path: Path) -> dict:
-    with open(path, "rb") as f:
-        return tomllib.load(f)
-
+# ── Main ────────────────────────────────────────────────────────────────────
 
 def main():
     config_path = Path(__file__).parent.parent / "config.toml"
-    cfg = load_config(config_path)
+    with open(config_path, "rb") as f:
+        cfg = tomllib.load(f)
 
-    audio_cfg   = cfg["audio"]
-    model_cfg   = cfg["model"]
-    hotkey_cfg  = cfg["hotkey"]
+    audio_cfg    = cfg["audio"]
+    model_cfg    = cfg["model"]
+    hotkey_cfg   = cfg["hotkey"]
     feedback_cfg = cfg.get("feedback", {})
+    MAX_RECORD_SECS = cfg.get("limits", {}).get("max_record_secs", 60)
 
     recorder = Recorder(
         sample_rate=audio_cfg["sample_rate"],
@@ -52,74 +59,96 @@ def main():
 
     engine = model_cfg.get("engine", "qwen3-asr")
     repo_map = {
-        "qwen3-asr":      model_cfg["qwen3_repo"],
+        "qwen3-asr":       model_cfg["qwen3_repo"],
         "voxtral-mini-3b": model_cfg["voxtral_repo"],
-        "whisper":        model_cfg["whisper_repo"],
+        "whisper":         model_cfg["whisper_repo"],
     }
-    model_repo = repo_map[engine]
-
     transcriber = Transcriber(
         engine=engine,
-        model_repo=model_repo,
+        model_repo=repo_map[engine],
         language=model_cfg.get("language") or None,
     )
-
-    # Cargar modelo al arrancar (no al primer uso)
     transcriber.load()
 
-    _lock = threading.Lock()
-    _busy = False
-    _target_app = None
+    # ── Máquina de estados ──────────────────────────────────────────────────
+    state      = State.IDLE
+    state_lock = threading.Lock()
+    target_app = None
+    auto_stop_timer: threading.Timer | None = None
 
-    def on_press():
-        nonlocal _busy, _target_app
-        with _lock:
-            if _busy:
-                return
-        # Capturar la app con foco ANTES de que el usuario empiece a hablar
-        _target_app = get_active_app()
-        if feedback_cfg.get("start_sound", True):
-            beep(880)
-        recorder.start()
-        print("● Grabando...")
+    def _set_idle():
+        nonlocal state
+        with state_lock:
+            state = State.IDLE
 
-    def on_release():
-        nonlocal _busy
-        with _lock:
-            if _busy:
+    def _finish_recording():
+        """Para la grabación y lanza la transcripción. Idempotente."""
+        nonlocal state, auto_stop_timer
+
+        with state_lock:
+            if state != State.RECORDING:
                 return
-            _busy = True
+            state = State.TRANSCRIBING
+            if auto_stop_timer:
+                auto_stop_timer.cancel()
+                auto_stop_timer = None
 
         if feedback_cfg.get("stop_sound", True):
             beep(440)
 
         audio = recorder.stop()
-        print(f"■ Grabación parada ({len(audio)/audio_cfg['sample_rate']:.1f}s). Transcribiendo...")
+        secs = len(audio) / audio_cfg["sample_rate"]
+        print(f"■ Grabación parada ({secs:.1f}s). Transcribiendo...")
 
-        if len(audio) < audio_cfg["sample_rate"] * 0.3:
+        if secs < 0.3:
             print("Audio demasiado corto, ignorando.")
-            with _lock:
-                _busy = False
+            _set_idle()
             return
 
-        target = _target_app
+        app = target_app
 
-        def transcribe_and_paste():
-            nonlocal _busy
+        def _work():
             try:
                 text = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
                 if text:
-                    paste_text(text, target_app=target)
+                    paste_text(text, target_app=app)
                     print(f'✓ Pegado: "{text}"')
                 else:
                     print("Sin transcripción.")
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"Error en transcripción: {e}")
             finally:
-                with _lock:
-                    _busy = False
+                _set_idle()
 
-        threading.Thread(target=transcribe_and_paste, daemon=True).start()
+        threading.Thread(target=_work, daemon=True).start()
+
+    # ── Callbacks del hotkey ────────────────────────────────────────────────
+
+    def on_press():
+        nonlocal state, target_app, auto_stop_timer
+
+        with state_lock:
+            if state != State.IDLE:
+                return
+            state = State.RECORDING
+
+        target_app = get_active_app()
+        if feedback_cfg.get("start_sound", True):
+            beep(880)
+        recorder.start()
+        print("● Grabando...")
+
+        # Timer de seguridad: corta la grabación si no se suelta la tecla
+        t = threading.Timer(MAX_RECORD_SECS, _finish_recording)
+        t.daemon = True
+        t.start()
+        with state_lock:
+            auto_stop_timer = t
+
+    def on_release():
+        _finish_recording()
+
+    # ── Arranque ────────────────────────────────────────────────────────────
 
     listener = HotkeyListener(
         modifiers=hotkey_cfg["modifiers"],
@@ -128,21 +157,25 @@ def main():
         on_release=on_release,
     )
 
-    print("WhisperFlow Local arrancado.")
-    mods = hotkey_cfg["modifiers"]
-    key_name = hotkey_cfg["key"]
-    atajo = " + ".join(mods + [key_name]) if mods else key_name
-    print(f"Atajo: {atajo}")
-    print("Ctrl+C para salir.\n")
+    stop_event = threading.Event()
 
-    listener.start()
-
-    try:
-        threading.Event().wait()
-    except KeyboardInterrupt:
+    def _handle_sigint(sig, frame):
         print("\nSaliendo...")
         listener.stop()
-        sys.exit(0)
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, _handle_sigint)
+
+    mods     = hotkey_cfg["modifiers"]
+    key_name = hotkey_cfg["key"]
+    atajo    = " + ".join(mods + [key_name]) if mods else key_name
+
+    print("WhisperFlow Local arrancado.")
+    print(f"Atajo: {atajo}  |  Engine: {engine}  |  Ctrl+C para salir.\n")
+
+    listener.start()
+    stop_event.wait()
+    sys.exit(0)
 
 
 if __name__ == "__main__":

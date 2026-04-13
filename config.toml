@@ -22,6 +22,10 @@ whisper_repo = "mlx-community/whisper-large-v3-turbo"
 # Idioma ("es" = español forzado, "" = autodetección)
 language = "es"
 
+[limits]
+# Segundos máximos de grabación antes de cortar automáticamente
+max_record_secs = 60
+
 [feedback]
 # Sonido al empezar a grabar
 start_sound = true
