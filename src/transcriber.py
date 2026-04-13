@@ -103,6 +103,11 @@ class Transcriber:
         result = mlx_whisper.transcribe(
             audio,
             path_or_hf_repo=self._session,
-            language=self.language,
+            language=self.language or None,
+            initial_prompt=(
+                "Transcripción con puntuación y mayúsculas correctas. "
+                "Siglas técnicas en mayúsculas: JSON, CSV, API, SQL, HTML, PDF. "
+                "Si hay una lista: - Primer elemento. - Segundo elemento. - Tercer elemento."
+            ),
         )
         return result["text"]
