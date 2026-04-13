@@ -24,10 +24,6 @@ whisper_repo = "mlx-community/whisper-large-v3-turbo-q4"
 # ""   = autodetect por segmento (mejor para mezcla español+inglés técnico)
 language = ""
 
-[limits]
-# Segundos máximos de grabación antes de cortar automáticamente
-max_record_secs = 180
-
 [feedback]
 start_sound = true
 stop_sound = true

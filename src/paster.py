@@ -1,39 +1,39 @@
 import time
-from pynput.keyboard import Controller
-from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
+from pynput.keyboard import Controller, Key
+from AppKit import NSWorkspace, NSPasteboard
 
 _keyboard = Controller()
-
-# Bundle IDs de terminales conocidos — si la app capturada es una de estas,
-# no intentamos activarla (el usuario ya ha cambiado de foco para cuando pegamos)
-_TERMINAL_BUNDLES = {
-    "com.mitchellh.ghostty",
-    "com.apple.Terminal",
-    "com.googlecode.iterm2",
-    "dev.warp.Warp-Stable",
-    "net.kovidgoyal.kitty",
-}
+_PBOARD_TYPE = "public.utf8-plain-text"
 
 
 def get_active_app():
-    """Devuelve la app activa. Espera un tick para que macOS se estabilice tras el keydown."""
+    """Devuelve la app activa al pulsar la tecla."""
     time.sleep(0.05)
     return NSWorkspace.sharedWorkspace().frontmostApplication()
 
 
 def paste_text(text: str, target_app=None):
-    app = NSWorkspace.sharedWorkspace().frontmostApplication()
+    """Pega el texto vía portapapeles + Cmd+V (instantáneo para cualquier longitud).
 
-    if target_app is not None:
-        bundle = target_app.bundleIdentifier() or ""
-        is_terminal = bundle in _TERMINAL_BUNDLES
+    Guarda el contenido anterior del portapapeles y lo restaura tras el pegado,
+    para que el usuario no pierda lo que tuviera copiado.
+    """
+    current = NSWorkspace.sharedWorkspace().frontmostApplication()
+    pressed_in = target_app.localizedName() if target_app else "?"
+    print(f"[paster] Pulsado en: {pressed_in} → Pegando en: {current.localizedName()}")
 
-        if not is_terminal:
-            # La app capturada no es un terminal: restaurar foco
-            target_app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
-            time.sleep(0.1)
-        else:
-            # Era un terminal: usar la app que tenga el foco ahora mismo
-            print(f"[paster] Terminal detectado al pulsar — pegando en app actual: {app.localizedName()}")
+    pb = NSPasteboard.generalPasteboard()
+    old = pb.stringForType_(_PBOARD_TYPE) or ""
 
-    _keyboard.type(text)
+    pb.clearContents()
+    pb.setString_forType_(text, _PBOARD_TYPE)
+
+    _keyboard.press(Key.cmd)
+    _keyboard.press('v')
+    _keyboard.release('v')
+    _keyboard.release(Key.cmd)
+
+    # Espera a que la app procese el pegado antes de restaurar el portapapeles
+    time.sleep(0.4)
+    pb.clearContents()
+    pb.setString_forType_(old, _PBOARD_TYPE)

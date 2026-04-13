@@ -22,10 +22,14 @@ class State(Enum):
 
 # ── Beep ────────────────────────────────────────────────────────────────────
 
-def beep(frequency: int = 1000, duration: float = 0.08):
+def beep(frequency: int = 1000, duration: float = 0.06):
     import math, os, struct, subprocess, tempfile, wave
     n = int(44100 * duration)
-    samples = [int(32767 * math.sin(2 * math.pi * frequency * i / 44100)) for i in range(n)]
+    # Amplitud baja (~8% del máximo) + decay exponencial para evitar corte brusco
+    samples = [
+        int(2600 * math.sin(2 * math.pi * frequency * i / 44100) * math.exp(-4 * i / n))
+        for i in range(n)
+    ]
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         path = f.name
     with wave.open(path, "w") as wf:
@@ -50,7 +54,6 @@ def main():
     model_cfg    = cfg["model"]
     hotkey_cfg   = cfg["hotkey"]
     feedback_cfg = cfg.get("feedback", {})
-    MAX_RECORD_SECS = cfg.get("limits", {}).get("max_record_secs", 60)
 
     recorder = Recorder(
         sample_rate=audio_cfg["sample_rate"],
@@ -75,7 +78,6 @@ def main():
     state      = State.IDLE
     state_lock = threading.Lock()
     target_app = None
-    auto_stop_timer: threading.Timer | None = None
 
     def _set_idle():
         nonlocal state
@@ -84,15 +86,12 @@ def main():
 
     def _finish_recording():
         """Para la grabación y lanza la transcripción. Idempotente."""
-        nonlocal state, auto_stop_timer
+        nonlocal state
 
         with state_lock:
             if state != State.RECORDING:
                 return
             state = State.TRANSCRIBING
-            if auto_stop_timer:
-                auto_stop_timer.cancel()
-                auto_stop_timer = None
 
         if feedback_cfg.get("stop_sound", True):
             beep(440)
@@ -128,7 +127,7 @@ def main():
     # ── Callbacks del hotkey ────────────────────────────────────────────────
 
     def on_press():
-        nonlocal state, target_app, auto_stop_timer
+        nonlocal state, target_app
 
         with state_lock:
             if state != State.IDLE:
@@ -140,13 +139,6 @@ def main():
             beep(880)
         recorder.start()
         print("● Grabando...")
-
-        # Timer de seguridad: corta la grabación si no se suelta la tecla
-        t = threading.Timer(MAX_RECORD_SECS, _finish_recording)
-        t.daemon = True
-        t.start()
-        with state_lock:
-            auto_stop_timer = t
 
     def on_release():
         _finish_recording()
