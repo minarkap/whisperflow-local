@@ -25,7 +25,6 @@ class State(Enum):
 def beep(frequency: int = 1000, duration: float = 0.06):
     import math, os, struct, subprocess, tempfile, wave
     n = int(44100 * duration)
-    # Amplitud baja (~8% del máximo) + decay exponencial para evitar corte brusco
     samples = [
         int(2600 * math.sin(2 * math.pi * frequency * i / 44100) * math.exp(-4 * i / n))
         for i in range(n)
@@ -61,7 +60,7 @@ def main():
         device=audio_cfg.get("device"),
     )
 
-    engine = model_cfg.get("engine", "qwen3-asr")
+    engine = model_cfg.get("engine", "whisper")
     repo_map = {
         "qwen3-asr":       model_cfg["qwen3_repo"],
         "voxtral-mini-3b": model_cfg["voxtral_repo"],
@@ -74,7 +73,6 @@ def main():
     )
     transcriber.load()
 
-    # ── Máquina de estados ──────────────────────────────────────────────────
     state      = State.IDLE
     state_lock = threading.Lock()
     target_app = None
@@ -85,9 +83,7 @@ def main():
             state = State.IDLE
 
     def _finish_recording():
-        """Para la grabación y lanza la transcripción. Idempotente."""
         nonlocal state
-
         with state_lock:
             if state != State.RECORDING:
                 return
@@ -124,16 +120,12 @@ def main():
 
         threading.Thread(target=_work, daemon=True).start()
 
-    # ── Callbacks del hotkey ────────────────────────────────────────────────
-
     def on_press():
         nonlocal state, target_app
-
         with state_lock:
             if state != State.IDLE:
                 return
             state = State.RECORDING
-
         target_app = get_active_app()
         if feedback_cfg.get("start_sound", True):
             beep(880)
@@ -142,8 +134,6 @@ def main():
 
     def on_release():
         _finish_recording()
-
-    # ── Arranque ────────────────────────────────────────────────────────────
 
     listener = HotkeyListener(
         modifiers=hotkey_cfg["modifiers"],
