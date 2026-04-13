@@ -9,6 +9,7 @@ from hotkey import HotkeyListener
 from recorder import Recorder
 from transcriber import Transcriber
 from paster import paste_text, get_active_app
+from formatter import format_text
 
 
 # ── Estado de la máquina ────────────────────────────────────────────────────
@@ -111,6 +112,8 @@ def main():
             try:
                 text = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
                 if text:
+                    if feedback_cfg.get("format_lists", True):
+                        text = format_text(text)
                     paste_text(text, target_app=app)
                     print(f'✓ Pegado: "{text}"')
                 else:

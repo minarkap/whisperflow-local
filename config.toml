@@ -29,7 +29,7 @@ language = ""
 max_record_secs = 180
 
 [feedback]
-# Sonido al empezar a grabar
 start_sound = true
-# Sonido al terminar de grabar (antes de transcribir)
 stop_sound = true
+# Detectar listas con ordinales (primero, segundo...) y formatear con guiones
+format_lists = true
