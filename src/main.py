@@ -6,7 +6,7 @@ from pathlib import Path
 from hotkey import HotkeyListener
 from recorder import Recorder
 from transcriber import Transcriber
-from paster import paste_text
+from paster import paste_text, get_active_app
 
 
 def beep(frequency: int = 1000, duration: float = 0.08):
@@ -61,12 +61,15 @@ def main():
 
     _lock = threading.Lock()
     _busy = False
+    _target_app = None
 
     def on_press():
-        nonlocal _busy
+        nonlocal _busy, _target_app
         with _lock:
             if _busy:
                 return
+        # Capturar la app con foco ANTES de que el usuario empiece a hablar
+        _target_app = get_active_app()
         if feedback_cfg.get("start_sound", True):
             beep(880)
         recorder.start()
@@ -91,12 +94,14 @@ def main():
                 _busy = False
             return
 
+        target = _target_app
+
         def transcribe_and_paste():
             nonlocal _busy
             try:
                 text = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
                 if text:
-                    paste_text(text)
+                    paste_text(text, target_app=target)
                     print(f'✓ Pegado: "{text}"')
                 else:
                     print("Sin transcripción.")

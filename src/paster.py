@@ -1,22 +1,30 @@
 import time
 import pyperclip
 from pynput.keyboard import Controller, Key
+from AppKit import NSWorkspace
 
 _keyboard = Controller()
 
 
-def paste_text(text: str):
+def get_active_app():
+    """Devuelve la app con foco en este momento."""
+    return NSWorkspace.sharedWorkspace().frontmostApplication()
+
+
+def paste_text(text: str, target_app=None):
     try:
         original = pyperclip.paste()
     except Exception:
         original = ""
 
     pyperclip.copy(text)
-
-    # Pequeña pausa para que el clipboard se asiente antes de pegar
     time.sleep(0.05)
 
-    # Cmd+V via pynput — mismo proceso, mismo permiso de Accesibilidad
+    # Restaurar foco a la app que tenía el cursor antes de grabar
+    if target_app is not None:
+        target_app.activateWithOptions_(0)
+        time.sleep(0.1)
+
     with _keyboard.pressed(Key.cmd):
         _keyboard.press("v")
         _keyboard.release("v")
