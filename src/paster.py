@@ -1,9 +1,11 @@
-import subprocess
+import time
 import pyperclip
+from pynput.keyboard import Controller, Key
+
+_keyboard = Controller()
 
 
 def paste_text(text: str):
-    # Guardar clipboard original para restaurarlo después
     try:
         original = pyperclip.paste()
     except Exception:
@@ -11,11 +13,16 @@ def paste_text(text: str):
 
     pyperclip.copy(text)
 
-    # Cmd+V via AppleScript — funciona en cualquier app macOS
-    script = 'tell application "System Events" to keystroke "v" using {command down}'
-    subprocess.run(["osascript", "-e", script], check=True)
+    # Pequeña pausa para que el clipboard se asiente antes de pegar
+    time.sleep(0.05)
 
-    # Restaurar clipboard original (sin bloquear el flujo si falla)
+    # Cmd+V via pynput — mismo proceso, mismo permiso de Accesibilidad
+    with _keyboard.pressed(Key.cmd):
+        _keyboard.press("v")
+        _keyboard.release("v")
+
+    time.sleep(0.05)
+
     try:
         pyperclip.copy(original)
     except Exception:
