@@ -15,10 +15,10 @@ device = -1
 
 [model]
 # Opciones: "qwen3-asr" | "voxtral-mini-3b" | "whisper"
-engine = "qwen3-asr"
+engine = "whisper"
 qwen3_repo   = "Qwen/Qwen3-ASR-0.6B"
 voxtral_repo = "mzbac/voxtral-mini-3b-4bit-mixed"
-whisper_repo = "mlx-community/whisper-large-v3-turbo"
+whisper_repo = "mlx-community/whisper-large-v3-turbo-q4"
 # Idioma ("es" = español forzado, "" = autodetección)
 # "es" = fuerza español (puede manchar siglas inglesas)
 # ""   = autodetect por segmento (mejor para mezcla español+inglés técnico)
