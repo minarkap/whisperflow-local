@@ -2,7 +2,7 @@
 
 Dictado por voz 100% local para macOS Apple Silicon. Mantén pulsada una tecla, habla, suéltala — el texto aparece donde tengas el cursor.
 
-Sin APIs de pago. Sin nube. Sin portapapeles contaminado de forma permanente.
+Sin APIs de pago. Sin nube. Sin historial de portapapeles contaminado.
 
 ## Cómo funciona
 
@@ -39,14 +39,14 @@ El modelo (~450 MB) se descarga automáticamente en el primer uso desde Hugging 
 
 ## Permisos de macOS
 
-Al arrancar por primera vez, macOS pedirá dos permisos para el binario `.venv/bin/python`:
+Al arrancar por primera vez, macOS pedirá dos permisos para `python3.12`:
 
 | Permiso | Para qué |
 |---|---|
 | **Monitorización de dispositivos de entrada** | Detectar la tecla `alt_r` globalmente |
 | **Accesibilidad** | Simular pulsaciones de teclado para pegar el texto |
 
-Ajustes del sistema → Privacidad y seguridad → (cada sección) → añadir `.venv/bin/python`.
+Ajustes del sistema → Privacidad y seguridad → (cada sección) → añadir `python3.12`.
 
 Sin estos permisos el hotkey no funciona o el texto no se pega.
 
@@ -71,8 +71,8 @@ language = ""       # "" = autodetección (español + inglés técnico)
                     # "es" = fuerza español
 
 [feedback]
-start_sound = true  # pitido al empezar a grabar
-stop_sound = true   # pitido al soltar la tecla
+start_sound = true  # pitido suave al empezar a grabar
+stop_sound = true   # pitido suave al soltar la tecla
 format_lists = true # convierte "primero X, segundo Y" en lista con guiones
 ```
 
@@ -101,6 +101,8 @@ Usa [Whisper large-v3-turbo](https://huggingface.co/mlx-community/whisper-large-
 
 ## Gestión del servicio
 
+WhisperFlow corre como un **LaunchAgent** de macOS: arranca automáticamente al iniciar sesión y se reinicia solo si peta. No necesitas abrirlo manualmente.
+
 ```bash
 # Ver logs en tiempo real
 tail -f ~/Library/Logs/whisperflow-local.log
@@ -108,7 +110,7 @@ tail -f ~/Library/Logs/whisperflow-local.log
 # Parar el servicio
 launchctl unload ~/Library/LaunchAgents/com.whisperflow.local.plist
 
-# Arrancar el servicio
+# Arrancar o reiniciar el servicio
 launchctl load ~/Library/LaunchAgents/com.whisperflow.local.plist
 
 # Desinstalar completamente
@@ -126,9 +128,9 @@ whisperflow-local/
 │   ├── transcriber.py   # Motor de transcripción (mlx-whisper)
 │   ├── paster.py        # Pegado via portapapeles + Cmd+V con restauración
 │   └── formatter.py     # Post-procesado de texto
-├── config.toml          # Configuración
-├── com.whisperflow.local.plist  # LaunchAgent para arranque automático
-├── install.sh           # Script de instalación
-├── uninstall.sh         # Script de desinstalación
-└── requirements.txt     # Dependencias Python
+├── config.toml                      # Configuración
+├── com.whisperflow.local.plist      # LaunchAgent (arranque automático)
+├── install.sh                       # Script de instalación
+├── uninstall.sh                     # Script de desinstalación
+└── requirements.txt                 # Dependencias Python
 ```
