@@ -10,8 +10,8 @@ key = "space"
 sample_rate = 16000
 # Canales (1 = mono)
 channels = 1
-# Dispositivo de entrada (null = micrófono por defecto)
-device = null
+# Dispositivo de entrada (-1 = micrófono por defecto del sistema)
+device = -1
 
 [model]
 # Modelo principal de transcripción

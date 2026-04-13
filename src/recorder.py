@@ -4,7 +4,7 @@ import sounddevice as sd
 
 
 class Recorder:
-    def __init__(self, sample_rate: int = 16000, channels: int = 1, device=None):
+    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: int = -1):
         self.sample_rate = sample_rate
         self.channels = channels
         self.device = device
@@ -16,7 +16,7 @@ class Recorder:
         self._stream = sd.InputStream(
             samplerate=self.sample_rate,
             channels=self.channels,
-            device=self.device,
+            device=self.device if self.device >= 0 else None,
             dtype="float32",
             callback=self._callback,
         )
