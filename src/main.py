@@ -50,15 +50,18 @@ def main():
         device=audio_cfg.get("device"),
     )
 
-    engine = model_cfg.get("engine", "voxtral-mini-3b")
-    if engine == "voxtral-mini-3b":
-        model_repo = model_cfg["voxtral_repo"]
-    else:
-        model_repo = model_cfg["whisper_repo"]
+    engine = model_cfg.get("engine", "qwen3-asr")
+    repo_map = {
+        "qwen3-asr":      model_cfg["qwen3_repo"],
+        "voxtral-mini-3b": model_cfg["voxtral_repo"],
+        "whisper":        model_cfg["whisper_repo"],
+    }
+    model_repo = repo_map[engine]
 
     transcriber = Transcriber(
+        engine=engine,
         model_repo=model_repo,
-        language=model_cfg.get("language"),
+        language=model_cfg.get("language") or None,
     )
 
     # Cargar modelo al arrancar (no al primer uso)

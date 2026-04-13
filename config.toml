@@ -14,12 +14,12 @@ channels = 1
 device = -1
 
 [model]
-# Modelo principal de transcripción
-# Opciones: "voxtral-mini-3b" | "whisper-large-v3"
-engine = "voxtral-mini-3b"
+# Opciones: "qwen3-asr" | "voxtral-mini-3b" | "whisper"
+engine = "qwen3-asr"
+qwen3_repo   = "mlx-community/Qwen3-ASR-1.7B-4bit"
 voxtral_repo = "mzbac/voxtral-mini-3b-4bit-mixed"
-whisper_repo = "mlx-community/whisper-large-v3-mlx"
-# Idioma (null = autodetección automática)
+whisper_repo = "mlx-community/whisper-large-v3-turbo"
+# Idioma ("es" = español forzado, "" = autodetección)
 language = "es"
 
 [feedback]
