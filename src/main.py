@@ -60,15 +60,9 @@ def main():
         device=audio_cfg.get("device"),
     )
 
-    engine = model_cfg.get("engine", "whisper")
-    repo_map = {
-        "qwen3-asr":       model_cfg["qwen3_repo"],
-        "voxtral-mini-3b": model_cfg["voxtral_repo"],
-        "whisper":         model_cfg["whisper_repo"],
-    }
     transcriber = Transcriber(
-        engine=engine,
-        model_repo=repo_map[engine],
+        engine="whisper",
+        model_repo=model_cfg["whisper_repo"],
         language=model_cfg.get("language") or None,
     )
     transcriber.load()
@@ -156,7 +150,7 @@ def main():
     atajo    = " + ".join(mods + [key_name]) if mods else key_name
 
     print("WhisperFlow Local arrancado.")
-    print(f"Atajo: {atajo}  |  Engine: {engine}  |  Ctrl+C para salir.\n")
+    print(f"Atajo: {atajo}  |  Ctrl+C para salir.\n")
 
     listener.start()
     stop_event.wait()

@@ -6,7 +6,7 @@ modifiers = []
 key = "alt_r"
 
 [audio]
-# Frecuencia de muestreo requerida por Voxtral/Whisper
+# Frecuencia de muestreo requerida por Whisper
 sample_rate = 16000
 # Canales (1 = mono)
 channels = 1
@@ -14,10 +14,7 @@ channels = 1
 device = -1
 
 [model]
-# Opciones: "qwen3-asr" | "voxtral-mini-3b" | "whisper"
 engine = "whisper"
-qwen3_repo   = "Qwen/Qwen3-ASR-0.6B"
-voxtral_repo = "mzbac/voxtral-mini-3b-4bit-mixed"
 whisper_repo = "mlx-community/whisper-large-v3-turbo-q4"
 # Idioma ("es" = español forzado, "" = autodetección)
 # "es" = fuerza español (puede manchar siglas inglesas)
