@@ -90,7 +90,7 @@ def main():
         secs = len(audio) / audio_cfg["sample_rate"]
         print(f"■ Grabación parada ({secs:.1f}s). Transcribiendo...")
 
-        if secs < 0.3:
+        if secs < 1.0:
             print("Audio demasiado corto, ignorando.")
             _set_idle()
             return

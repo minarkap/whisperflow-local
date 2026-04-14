@@ -36,5 +36,30 @@ class Transcriber:
                 ),
             )
             text = result["text"].strip()
-            print(f"Transcripción en {time.time() - t0:.2f}s: {text!r}")
+            elapsed = time.time() - t0
+            print(f"Transcripción en {elapsed:.2f}s: {text!r}")
+
+            # 1) Silencio detectado por Whisper (no_speech_prob por segmento)
+            segments = result.get("segments", [])
+            if segments:
+                avg_no_speech = sum(s.get("no_speech_prob", 0) for s in segments) / len(segments)
+                if avg_no_speech > 0.6:
+                    print(f"Sin voz detectado (no_speech_prob={avg_no_speech:.2f}), descartando.")
+                    return ""
+
+            # 2) Alucinación por tokens repetidos (red de seguridad)
+            if self._is_hallucination(text):
+                print("Alucinación detectada (texto repetido), descartando.")
+                return ""
+
             return text
+
+    @staticmethod
+    def _is_hallucination(text: str) -> bool:
+        """Detecta alucinaciones de Whisper por tokens repetidos."""
+        words = text.split()
+        if len(words) < 8:
+            return False
+        from collections import Counter
+        _, count = Counter(words).most_common(1)[0]
+        return count / len(words) > 0.6
