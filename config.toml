@@ -3,7 +3,7 @@
 # Teclas modificadoras válidas: ctrl, alt, shift, cmd
 # Tecla principal: cualquier tecla o "space", "tab", etc.
 modifiers = []
-key = "alt_r"
+key = "alt_l"
 
 [audio]
 # Frecuencia de muestreo requerida por Whisper

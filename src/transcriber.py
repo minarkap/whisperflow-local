@@ -1,5 +1,6 @@
 import time
 import threading
+from collections import Counter
 import numpy as np
 
 
@@ -35,24 +36,39 @@ class Transcriber:
                     "Si hay una lista: - Primer elemento. - Segundo elemento. - Tercer elemento."
                 ),
             )
-            text = result["text"].strip()
             elapsed = time.time() - t0
-            print(f"Transcripción en {elapsed:.2f}s: {text!r}")
+            raw_text = result["text"].strip()
+            print(f"Transcripción en {elapsed:.2f}s: {raw_text!r}")
 
-            # 1) Silencio detectado por Whisper (no_speech_prob por segmento)
             segments = result.get("segments", [])
             if segments:
-                avg_no_speech = sum(s.get("no_speech_prob", 0) for s in segments) / len(segments)
-                if avg_no_speech > 0.6:
-                    print(f"Sin voz detectado (no_speech_prob={avg_no_speech:.2f}), descartando.")
-                    return ""
-
-            # 2) Alucinación por tokens repetidos (red de seguridad)
-            if self._is_hallucination(text):
-                print("Alucinación detectada (texto repetido), descartando.")
-                return ""
+                # Filtra segmento a segmento para conservar el texto bueno
+                # aunque haya alucinación al final
+                text = self._filter_segments(segments)
+                if text != raw_text:
+                    print(f"Texto filtrado: {text!r}")
+            else:
+                # Sin info de segmentos: descarta solo si TODO es alucinación
+                text = "" if self._is_hallucination(raw_text) else raw_text
 
             return text
+
+    @classmethod
+    def _filter_segments(cls, segments: list) -> str:
+        """Devuelve solo el texto de segmentos válidos, descartando alucinaciones y silencio."""
+        good = []
+        for seg in segments:
+            seg_text = seg.get("text", "").strip()
+            if not seg_text:
+                continue
+            # Whisper considera este segmento sin voz → saltar
+            if seg.get("no_speech_prob", 0) > 0.6:
+                continue
+            # Texto repetitivo → alucinación → saltar
+            if cls._is_hallucination(seg_text):
+                continue
+            good.append(seg_text)
+        return " ".join(good)
 
     @staticmethod
     def _is_hallucination(text: str) -> bool:
@@ -60,6 +76,5 @@ class Transcriber:
         words = text.split()
         if len(words) < 8:
             return False
-        from collections import Counter
         _, count = Counter(words).most_common(1)[0]
         return count / len(words) > 0.6
