@@ -123,6 +123,8 @@ def main():
 
         threading.Thread(target=_work, daemon=True).start()
 
+    MAX_RECORDING_SECS = 90
+
     def on_press():
         nonlocal state, target_app
         with state_lock:
@@ -134,6 +136,18 @@ def main():
             beep(880)
         recorder.start()
         print("● Grabando...")
+
+        # Watchdog: auto-para si la tecla se queda pillada
+        def _watchdog():
+            with state_lock:
+                if state != State.RECORDING:
+                    return
+            print(f"⚠ Timeout de grabación ({MAX_RECORDING_SECS}s), parando.")
+            _finish_recording()
+
+        t = threading.Timer(MAX_RECORDING_SECS, _watchdog)
+        t.daemon = True
+        t.start()
 
     def on_release():
         _finish_recording()

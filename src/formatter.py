@@ -102,7 +102,7 @@ _ORDINALS = (
     r"primer|tercer|undécimo|duodécimo"
 )
 _MARKER_RE = re.compile(
-    rf"(?<![a-záéíóúñ])({_ORDINALS})[\s,.:;-]*",
+    rf"(?<![a-záéíóúñ])(?:(?:el|la|los|las|un|una)\s+)?({_ORDINALS})[\s,.:;-]*",
     re.IGNORECASE,
 )
 
