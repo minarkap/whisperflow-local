@@ -42,14 +42,18 @@ class Transcriber:
 
             segments = result.get("segments", [])
             if segments:
-                # Filtra segmento a segmento para conservar el texto bueno
-                # aunque haya alucinación al final
                 text = self._filter_segments(segments)
                 if text != raw_text:
-                    print(f"Texto filtrado: {text!r}")
+                    print(f"Texto filtrado por segmentos: {text!r}")
             else:
-                # Sin info de segmentos: descarta solo si TODO es alucinación
-                text = "" if self._is_hallucination(raw_text) else raw_text
+                text = raw_text
+
+            # Verificación final sobre el texto ensamblado completo.
+            # Necesaria porque los segmentos individuales son muy cortos
+            # para que _is_hallucination los detecte (< 8 palabras).
+            if self._is_hallucination(text):
+                print("Alucinación detectada en texto final, descartando.")
+                return ""
 
             return text
 
