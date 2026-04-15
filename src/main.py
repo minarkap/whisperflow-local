@@ -1,9 +1,18 @@
+import builtins
 import signal
 import sys
 import threading
 import tomllib
+from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
+
+# Añade timestamp y flush automático a todos los print
+_orig_print = builtins.print
+def _ts_print(*args, **kwargs):
+    kwargs.setdefault("flush", True)
+    _orig_print(f"[{datetime.now().strftime('%H:%M:%S')}]", *args, **kwargs)
+builtins.print = _ts_print
 
 from hotkey import HotkeyListener
 from recorder import Recorder
