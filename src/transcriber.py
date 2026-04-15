@@ -72,9 +72,23 @@ class Transcriber:
 
     @staticmethod
     def _is_hallucination(text: str) -> bool:
-        """Detecta alucinaciones de Whisper por tokens repetidos."""
+        """Detecta alucinaciones de Whisper por tokens o frases repetidas."""
         words = text.split()
         if len(words) < 8:
             return False
+
+        # Palabra única repetida (Plus Plus Plus...)
         _, count = Counter(words).most_common(1)[0]
-        return count / len(words) > 0.6
+        if count / len(words) > 0.6:
+            return True
+
+        # Frase corta repetida (Momentum e Momentum e...)
+        for n in (2, 3):
+            if len(words) < n * 4:
+                continue
+            ngrams = [tuple(words[i:i + n]) for i in range(len(words) - n + 1)]
+            _, ng_count = Counter(ngrams).most_common(1)[0]
+            if ng_count / len(ngrams) > 0.4:
+                return True
+
+        return False
