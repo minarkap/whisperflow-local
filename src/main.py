@@ -1,11 +1,40 @@
 import builtins
+import ctypes
 import signal
 import sys
 import threading
+import time
 import tomllib
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
+
+# ── Detección de estado físico de tecla (macOS CoreGraphics) ────────────────
+# Permite detectar releases perdidos consultando el hardware directamente,
+# sin depender de los eventos de pynput que el OS puede descartar.
+
+_cg = ctypes.cdll.LoadLibrary(
+    "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics"
+)
+_cg.CGEventSourceKeyState.argtypes = [ctypes.c_int, ctypes.c_uint16]
+_cg.CGEventSourceKeyState.restype  = ctypes.c_bool
+
+_HID_STATE = 1  # kCGEventSourceStateHIDSystemState
+
+_MACOS_KEYCODES: dict[str, int] = {
+    "alt_l":   58, "alt_r":   61,
+    "ctrl_l":  59, "ctrl_r":  62,
+    "shift_l": 56, "shift_r": 60,
+    "cmd_l":   55, "cmd_r":   54,
+    "space":   49, "tab":     48, "enter": 36,
+}
+
+def _key_is_held(key_name: str) -> bool:
+    """Devuelve True si la tecla está físicamente pulsada según el HW."""
+    keycode = _MACOS_KEYCODES.get(key_name.lower())
+    if keycode is None:
+        return True  # tecla desconocida → no interferir
+    return bool(_cg.CGEventSourceKeyState(_HID_STATE, keycode))
 
 # Añade timestamp y flush automático a todos los print
 _orig_print = builtins.print
@@ -123,8 +152,6 @@ def main():
 
         threading.Thread(target=_work, daemon=True).start()
 
-    MAX_RECORDING_SECS = 90
-
     def on_press():
         nonlocal state, target_app
         with state_lock:
@@ -137,17 +164,21 @@ def main():
         recorder.start()
         print("● Grabando...")
 
-        # Watchdog: auto-para si la tecla se queda pillada
-        def _watchdog():
-            with state_lock:
-                if state != State.RECORDING:
-                    return
-            print(f"⚠ Timeout de grabación ({MAX_RECORDING_SECS}s), parando.")
-            _finish_recording()
+        # Watchdog de hardware: comprueba el estado físico de la tecla
+        # cada 200ms. Si el OS perdió el evento de release, lo detecta aquí.
+        def _hw_watchdog():
+            time.sleep(0.5)  # margen inicial para que el press se registre
+            while True:
+                with state_lock:
+                    if state != State.RECORDING:
+                        break
+                if not _key_is_held(hotkey_cfg["key"]):
+                    print("⚠ Release de tecla no recibido, recuperando.")
+                    _finish_recording()
+                    break
+                time.sleep(0.2)
 
-        t = threading.Timer(MAX_RECORDING_SECS, _watchdog)
-        t.daemon = True
-        t.start()
+        threading.Thread(target=_hw_watchdog, daemon=True).start()
 
     def on_release():
         _finish_recording()
