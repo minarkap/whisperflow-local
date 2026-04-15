@@ -147,9 +147,11 @@ def _fix_questions(text: str) -> str:
     """Añade ¿ al inicio de preguntas que terminen en ? sin ¿ de apertura."""
     def _add_opening(m):
         sentence = m.group(0)
-        if sentence.startswith("¿"):
+        stripped = sentence.lstrip()
+        if stripped.startswith("¿"):
             return sentence  # ya tiene apertura, no tocar
-        return "¿" + sentence
+        leading = sentence[: len(sentence) - len(stripped)]
+        return leading + "¿" + stripped
     # Incluye el ¿ inicial en el match si existe, para no duplicarlo
     return re.sub(r"¿?[^.!?¿¡]*\?", _add_opening, text)
 
