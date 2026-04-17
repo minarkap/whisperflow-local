@@ -30,6 +30,7 @@ class Transcriber:
                 audio,
                 path_or_hf_repo=self._session,
                 language=self.language or None,
+                condition_on_previous_text=False,
                 initial_prompt=(
                     "Transcripción con puntuación y mayúsculas correctas. "
                     "Siglas técnicas en mayúsculas: JSON, CSV, API, SQL, HTML, PDF. "
@@ -37,20 +38,15 @@ class Transcriber:
                 ),
             )
             elapsed = time.time() - t0
-            raw_text = result["text"].strip()
-            print(f"Transcripción en {elapsed:.2f}s: {raw_text!r}")
 
             segments = result.get("segments", [])
             if segments:
                 text = self._filter_segments(segments)
-                if text != raw_text:
-                    print(f"Texto filtrado por segmentos: {text!r}")
             else:
-                text = raw_text
+                text = result["text"].strip()
 
-            # Verificación final sobre el texto ensamblado completo.
-            # Necesaria porque los segmentos individuales son muy cortos
-            # para que _is_hallucination los detecte (< 8 palabras).
+            print(f"Transcripción en {elapsed:.2f}s: {text!r}")
+
             if self._is_hallucination(text):
                 print("Alucinación detectada en texto final, descartando.")
                 return ""
@@ -59,20 +55,45 @@ class Transcriber:
 
     @classmethod
     def _filter_segments(cls, segments: list) -> str:
-        """Devuelve solo el texto de segmentos válidos, descartando alucinaciones y silencio."""
+        """Devuelve texto de segmentos válidos, parando al primer signo de looping."""
         good = []
         for seg in segments:
             seg_text = seg.get("text", "").strip()
             if not seg_text:
                 continue
-            # Whisper considera este segmento sin voz → saltar
+            # Sin voz detectada → Whisper está rellenando, parar aquí
             if seg.get("no_speech_prob", 0) > 0.6:
-                continue
-            # Texto repetitivo → alucinación → saltar
+                break
+            # Texto repetitivo → Whisper en loop, parar aquí
             if cls._is_hallucination(seg_text):
-                continue
+                break
             good.append(seg_text)
-        return " ".join(good)
+
+        text = " ".join(good)
+
+        # Detectar loop en el texto ensamblado (ej: frase real + looping al final)
+        return cls._truncate_loop(text)
+
+    @staticmethod
+    def _truncate_loop(text: str) -> str:
+        """Trunca el texto en el punto donde empieza un loop de n-gramas."""
+        words = text.split()
+        if len(words) < 20:
+            return text
+
+        # Busca la primera ventana de 10 palabras con ratio de repetición alto
+        for n in (2, 3):
+            seen: dict[tuple, int] = {}
+            ngrams = [tuple(words[i:i + n]) for i in range(len(words) - n + 1)]
+            for idx, ng in enumerate(ngrams):
+                seen[ng] = seen.get(ng, 0) + 1
+                # Si este n-grama ya apareció ≥3 veces, truncar antes de la primera repetición
+                if seen[ng] >= 3:
+                    first_pos = next(
+                        i for i, g in enumerate(ngrams) if g == ng
+                    )
+                    return " ".join(words[:first_pos + n])
+        return text
 
     @staticmethod
     def _is_hallucination(text: str) -> bool:
