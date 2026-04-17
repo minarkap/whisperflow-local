@@ -94,6 +94,18 @@ _PROPER_NAMES: dict[str, str] = {
     "make":       "Make",
 }
 
+_WORD_BOUNDARY = r"(?<![A-Za-záéíóúñ]){}(?![A-Za-záéíóúñ])"
+
+# Pre-compilar regexes de siglas y nombres propios (evita recompilación en cada llamada)
+_ACRONYM_RES: list[tuple[re.Pattern, str]] = [
+    (re.compile(_WORD_BOUNDARY.format(re.escape(acr)), re.IGNORECASE), acr)
+    for acr in _ACRONYMS
+]
+_PROPER_NAME_RES: list[tuple[re.Pattern, str]] = [
+    (re.compile(_WORD_BOUNDARY.format(re.escape(lower)), re.IGNORECASE), correct)
+    for lower, correct in _PROPER_NAMES.items()
+]
+
 # ── 3. Ordinales para detección de listas ──────────────────────────────────
 
 _ORDINALS = (
@@ -110,35 +122,21 @@ _MARKER_RE = re.compile(
 # ── Pipeline ────────────────────────────────────────────────────────────────
 
 def _fix_acronyms(text: str) -> str:
-    """Pone en mayúsculas siglas conocidas donde aparezcan en minúsculas."""
-    for acr in _ACRONYMS:
-        text = re.sub(
-            rf"(?<![A-Za-záéíóúñ]){re.escape(acr)}(?![A-Za-záéíóúñ])",
-            acr,
-            text,
-            flags=re.IGNORECASE,
-        )
+    for pattern, acr in _ACRONYM_RES:
+        text = pattern.sub(acr, text)
     return text
 
 
 def _fix_proper_names(text: str) -> str:
-    """Aplica capitalización correcta a tecnologías y productos conocidos."""
-    for lower, correct in _PROPER_NAMES.items():
-        text = re.sub(
-            rf"(?<![A-Za-záéíóúñ]){re.escape(lower)}(?![A-Za-záéíóúñ])",
-            correct,
-            text,
-            flags=re.IGNORECASE,
-        )
+    for pattern, correct in _PROPER_NAME_RES:
+        text = pattern.sub(correct, text)
     return text
 
 
 def _fix_sentences(text: str) -> str:
     """Capitaliza la primera letra de cada oración."""
-    # Primera letra del texto
     if text:
         text = text[0].upper() + text[1:]
-    # Después de . ! ? seguido de espacio
     text = re.sub(r"([.!?])\s+([a-záéíóúüñ])", lambda m: m.group(1) + " " + m.group(2).upper(), text)
     return text
 
@@ -149,10 +147,9 @@ def _fix_questions(text: str) -> str:
         sentence = m.group(0)
         stripped = sentence.lstrip()
         if stripped.startswith("¿"):
-            return sentence  # ya tiene apertura, no tocar
+            return sentence
         leading = sentence[: len(sentence) - len(stripped)]
         return leading + "¿" + stripped
-    # Incluye el ¿ inicial en el match si existe, para no duplicarlo
     return re.sub(r"¿?[^.!?¿¡]*\?", _add_opening, text)
 
 
@@ -169,7 +166,6 @@ def _format_lists(text: str) -> str:
         start = match.end()
         end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
         content = text[start:end].strip()
-        # Quitar puntuación y conjunciones de enlace al final del item
         content = re.sub(r"[\s,;.]*\b(y|e|o|u|pero|aunque|además)\s*$", "", content, flags=re.IGNORECASE).strip()
         content = content.rstrip(".,;").strip()
         if content:

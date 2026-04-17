@@ -29,8 +29,11 @@ class Recorder:
             self._stream = None
 
         chunks = []
-        while not self._queue.empty():
-            chunks.append(self._queue.get_nowait())
+        try:
+            while True:
+                chunks.append(self._queue.get_nowait())
+        except Exception:
+            pass
 
         if not chunks:
             return np.zeros(0, dtype="float32")

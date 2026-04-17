@@ -13,11 +13,15 @@ from pathlib import Path
 # Permite detectar releases perdidos consultando el hardware directamente,
 # sin depender de los eventos de pynput que el OS puede descartar.
 
-_cg = ctypes.cdll.LoadLibrary(
-    "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics"
-)
-_cg.CGEventSourceKeyState.argtypes = [ctypes.c_int, ctypes.c_uint16]
-_cg.CGEventSourceKeyState.restype  = ctypes.c_bool
+try:
+    _cg = ctypes.cdll.LoadLibrary(
+        "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics"
+    )
+    _cg.CGEventSourceKeyState.argtypes = [ctypes.c_int, ctypes.c_uint16]
+    _cg.CGEventSourceKeyState.restype  = ctypes.c_bool
+    _CG_AVAILABLE = True
+except OSError:
+    _CG_AVAILABLE = False
 
 _HID_STATE = 1  # kCGEventSourceStateHIDSystemState
 
@@ -31,6 +35,8 @@ _MACOS_KEYCODES: dict[str, int] = {
 
 def _key_is_held(key_name: str) -> bool:
     """Devuelve True si la tecla está físicamente pulsada según el HW."""
+    if not _CG_AVAILABLE:
+        return True
     keycode = _MACOS_KEYCODES.get(key_name.lower())
     if keycode is None:
         return True  # tecla desconocida → no interferir
@@ -74,8 +80,13 @@ def beep(frequency: int = 1000, duration: float = 0.06):
         wf.writeframes(struct.pack(f"<{n}h", *samples))
 
     def _play():
-        subprocess.run(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        os.unlink(path)
+        try:
+            subprocess.run(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
     threading.Thread(target=_play, daemon=True).start()
 
@@ -84,8 +95,15 @@ def beep(frequency: int = 1000, duration: float = 0.06):
 
 def main():
     config_path = Path(__file__).parent.parent / "config.toml"
-    with open(config_path, "rb") as f:
-        cfg = tomllib.load(f)
+    try:
+        with open(config_path, "rb") as f:
+            cfg = tomllib.load(f)
+    except FileNotFoundError:
+        print(f"Error: no se encontró config.toml en {config_path}")
+        sys.exit(1)
+    except tomllib.TOMLDecodeError as e:
+        print(f"Error en config.toml: {e}")
+        sys.exit(1)
 
     audio_cfg    = cfg["audio"]
     model_cfg    = cfg["model"]
@@ -103,7 +121,11 @@ def main():
         model_repo=model_cfg["whisper_repo"],
         language=model_cfg.get("language") or None,
     )
-    transcriber.load()
+    try:
+        transcriber.load()
+    except Exception as e:
+        print(f"Error cargando el modelo: {e}")
+        sys.exit(1)
 
     state      = State.IDLE
     state_lock = threading.Lock()
@@ -195,6 +217,10 @@ def main():
     def _handle_sigint(sig, frame):
         print("\nSaliendo...")
         listener.stop()
+        try:
+            recorder.stop()
+        except Exception:
+            pass
         stop_event.set()
 
     signal.signal(signal.SIGINT, _handle_sigint)
@@ -206,7 +232,11 @@ def main():
     print("WhisperFlow Local arrancado.")
     print(f"Atajo: {atajo}  |  Ctrl+C para salir.\n")
 
-    listener.start()
+    try:
+        listener.start()
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
     stop_event.wait()
     sys.exit(0)
 

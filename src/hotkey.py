@@ -51,7 +51,13 @@ class HotkeyListener:
             on_press=self._on_key_down,
             on_release=self._on_key_up,
         )
-        self._listener.start()
+        try:
+            self._listener.start()
+        except Exception as e:
+            raise RuntimeError(
+                f"No se pudo iniciar el listener de teclado: {e}\n"
+                "Asegúrate de que la app tiene permisos de Accesibilidad en Preferencias del Sistema."
+            ) from e
 
     def stop(self):
         if self._listener:
