@@ -151,8 +151,30 @@ def main():
         app = target_app
 
         def _work():
+            # Timeout: 8s por segundo de audio + 6s de overhead.
+            # Si Whisper se cuelga en una alucinación, desbloqueamos el estado
+            # aunque el hilo interno siga corriendo en background.
+            max_wait = secs * 8 + 6
+            result: list = [None]
+            exc:    list = [None]
+
+            def _transcribe():
+                try:
+                    result[0] = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
+                except Exception as e:
+                    exc[0] = e
+
+            t = threading.Thread(target=_transcribe, daemon=True)
+            t.start()
+            t.join(timeout=max_wait)
+
             try:
-                text = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
+                if t.is_alive():
+                    print(f"⏱ Transcripción cancelada por timeout ({max_wait:.0f}s).")
+                    return
+                if exc[0]:
+                    raise exc[0]
+                text = result[0]
                 if text:
                     if feedback_cfg.get("format_lists", True):
                         text = format_text(text)

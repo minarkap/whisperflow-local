@@ -31,6 +31,7 @@ class Transcriber:
                 path_or_hf_repo=self._session,
                 language=self.language or None,
                 condition_on_previous_text=False,
+                temperature=0.0,
                 initial_prompt=(
                     "Transcripción con puntuación y mayúsculas correctas. "
                     "Siglas técnicas en mayúsculas: JSON, CSV, API, SQL, HTML, PDF. "
