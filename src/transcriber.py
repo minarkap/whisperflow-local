@@ -15,7 +15,8 @@ class Transcriber:
     def load(self):
         print(f"Cargando modelo {self.model_repo}...")
         t0 = time.time()
-        import mlx_whisper  # noqa: F401 — verifica que está instalado
+        import mlx_whisper
+        self._mlx_whisper = mlx_whisper
         self._session = self.model_repo
         print(f"Modelo listo en {time.time() - t0:.1f}s")
 
@@ -32,8 +33,7 @@ class Transcriber:
 
         try:
             t0 = time.time()
-            import mlx_whisper
-            result = mlx_whisper.transcribe(
+            result = self._mlx_whisper.transcribe(
                 audio,
                 path_or_hf_repo=self._session,
                 language=self.language or None,
@@ -91,18 +91,16 @@ class Transcriber:
         if len(words) < 20:
             return text
 
-        # Busca la primera ventana de 10 palabras con ratio de repetición alto
         for n in (2, 3):
-            seen: dict[tuple, int] = {}
-            ngrams = [tuple(words[i:i + n]) for i in range(len(words) - n + 1)]
-            for idx, ng in enumerate(ngrams):
-                seen[ng] = seen.get(ng, 0) + 1
-                # Si este n-grama ya apareció ≥3 veces, truncar antes de la primera repetición
-                if seen[ng] >= 3:
-                    first_pos = next(
-                        i for i, g in enumerate(ngrams) if g == ng
-                    )
-                    return " ".join(words[:first_pos + n])
+            first_seen: dict[tuple, int] = {}  # ng → posición de primera aparición
+            count: dict[tuple, int] = {}
+            for i in range(len(words) - n + 1):
+                ng = tuple(words[i:i + n])
+                if ng not in first_seen:
+                    first_seen[ng] = i
+                count[ng] = count.get(ng, 0) + 1
+                if count[ng] >= 3:
+                    return " ".join(words[:first_seen[ng] + n])
         return text
 
     @staticmethod

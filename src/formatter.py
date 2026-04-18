@@ -117,6 +117,11 @@ _MARKER_RE = re.compile(
     rf"(?<![a-záéíóúñ])(?:(?:el|la|los|las|un|una)\s+)?({_ORDINALS})[\s,.:;-]*",
     re.IGNORECASE,
 )
+_SENTENCE_CAP_RE = re.compile(r"([.!?])\s+([a-záéíóúüñ])")
+_QUESTION_RE     = re.compile(r"¿?[^.!?¿¡]*\?")
+_LIST_CONNECTOR_RE = re.compile(
+    r"[\s,;.]*\b(y|e|o|u|pero|aunque|además)\s*$", re.IGNORECASE
+)
 
 
 # ── Pipeline ────────────────────────────────────────────────────────────────
@@ -137,7 +142,7 @@ def _fix_sentences(text: str) -> str:
     """Capitaliza la primera letra de cada oración."""
     if text:
         text = text[0].upper() + text[1:]
-    text = re.sub(r"([.!?])\s+([a-záéíóúüñ])", lambda m: m.group(1) + " " + m.group(2).upper(), text)
+    text = _SENTENCE_CAP_RE.sub(lambda m: m.group(1) + " " + m.group(2).upper(), text)
     return text
 
 
@@ -150,7 +155,7 @@ def _fix_questions(text: str) -> str:
             return sentence
         leading = sentence[: len(sentence) - len(stripped)]
         return leading + "¿" + stripped
-    return re.sub(r"¿?[^.!?¿¡]*\?", _add_opening, text)
+    return _QUESTION_RE.sub(_add_opening, text)
 
 
 def _format_lists(text: str) -> str:
@@ -166,7 +171,7 @@ def _format_lists(text: str) -> str:
         start = match.end()
         end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
         content = text[start:end].strip()
-        content = re.sub(r"[\s,;.]*\b(y|e|o|u|pero|aunque|además)\s*$", "", content, flags=re.IGNORECASE).strip()
+        content = _LIST_CONNECTOR_RE.sub("", content).strip()
         content = content.rstrip(".,;").strip()
         if content:
             content = content[0].upper() + content[1:]

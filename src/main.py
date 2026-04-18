@@ -10,6 +10,7 @@ from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
+import sounddevice as _sd
 
 # ── Detección de estado físico de tecla (macOS CoreGraphics) ────────────────
 # Permite detectar releases perdidos consultando el hardware directamente,
@@ -79,9 +80,8 @@ def _make_beep(frequency: int, duration: float) -> "np.ndarray":
 _BEEP_START = _make_beep(880, 0.06)
 _BEEP_STOP  = _make_beep(440, 0.06)
 
-def beep(wave: "np.ndarray"):
-    import sounddevice as sd
-    sd.play(wave, samplerate=_BEEP_SR)
+def beep(wave: np.ndarray):
+    _sd.play(wave, samplerate=_BEEP_SR)
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
