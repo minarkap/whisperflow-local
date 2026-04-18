@@ -23,7 +23,14 @@ class Transcriber:
         if self._session is None:
             self.load()
 
-        with self._lock:
+        # Trylock: si la transcripción anterior sigue corriendo (colgada),
+        # descartamos en vez de bloquear indefinidamente.
+        acquired = self._lock.acquire(blocking=False)
+        if not acquired:
+            print("⚠ Transcripción anterior aún en curso, descartando nueva.")
+            return ""
+
+        try:
             t0 = time.time()
             import mlx_whisper
             result = mlx_whisper.transcribe(
@@ -53,6 +60,8 @@ class Transcriber:
                 return ""
 
             return text
+        finally:
+            self._lock.release()
 
     @classmethod
     def _filter_segments(cls, segments: list) -> str:

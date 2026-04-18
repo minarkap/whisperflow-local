@@ -129,7 +129,7 @@ def main():
         with state_lock:
             state = State.IDLE
 
-    def _finish_recording():
+    def _finish_recording(watchdog: bool = False):
         nonlocal state
         with state_lock:
             if state != State.RECORDING:
@@ -143,7 +143,9 @@ def main():
         secs = len(audio) / audio_cfg["sample_rate"]
         print(f"■ Grabación parada ({secs:.1f}s). Transcribiendo...")
 
-        if secs < 1.0:
+        # El watchdog suele dispararse en pulsaciones accidentales — umbral más alto
+        min_secs = 1.5 if watchdog else 1.0
+        if secs < min_secs:
             print("Audio demasiado corto, ignorando.")
             _set_idle()
             return
@@ -218,7 +220,7 @@ def main():
                         break
                 if not _key_is_held(hotkey_cfg["key"]):
                     print("⚠ Release de tecla no recibido, recuperando.")
-                    _finish_recording()
+                    _finish_recording(watchdog=True)
                     break
                 time.sleep(0.2)
 
