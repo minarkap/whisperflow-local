@@ -9,6 +9,8 @@ from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
 
+import numpy as np
+
 # ── Detección de estado físico de tecla (macOS CoreGraphics) ────────────────
 # Permite detectar releases perdidos consultando el hardware directamente,
 # sin depender de los eventos de pynput que el OS puede descartar.
@@ -66,29 +68,20 @@ class State(Enum):
 
 # ── Beep ────────────────────────────────────────────────────────────────────
 
-def beep(frequency: int = 1000, duration: float = 0.06):
-    import math, os, struct, subprocess, tempfile, wave
-    n = int(44100 * duration)
-    samples = [
-        int(2600 * math.sin(2 * math.pi * frequency * i / 44100) * math.exp(-4 * i / n))
-        for i in range(n)
-    ]
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        path = f.name
-    with wave.open(path, "w") as wf:
-        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(44100)
-        wf.writeframes(struct.pack(f"<{n}h", *samples))
+_BEEP_SR = 44100
 
-    def _play():
-        try:
-            subprocess.run(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        finally:
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
+def _make_beep(frequency: int, duration: float) -> "np.ndarray":
+    n = int(_BEEP_SR * duration)
+    t = np.linspace(0, duration, n, endpoint=False)
+    return (0.4 * np.sin(2 * np.pi * frequency * t) * np.exp(-5 * t / duration)).astype(np.float32)
 
-    threading.Thread(target=_play, daemon=True).start()
+# Pre-generar ambos pitidos al arrancar para que la reproducción sea instantánea
+_BEEP_START = _make_beep(880, 0.06)
+_BEEP_STOP  = _make_beep(440, 0.06)
+
+def beep(wave: "np.ndarray"):
+    import sounddevice as sd
+    sd.play(wave, samplerate=_BEEP_SR)
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
@@ -144,7 +137,7 @@ def main():
             state = State.TRANSCRIBING
 
         if feedback_cfg.get("stop_sound", True):
-            beep(440)
+            beep(_BEEP_STOP)
 
         audio = recorder.stop()
         secs = len(audio) / audio_cfg["sample_rate"]
@@ -174,17 +167,24 @@ def main():
 
         threading.Thread(target=_work, daemon=True).start()
 
+    def _set_target_app():
+        nonlocal target_app
+        target_app = get_active_app()
+
     def on_press():
         nonlocal state, target_app
         with state_lock:
             if state != State.IDLE:
                 return
             state = State.RECORDING
-        target_app = get_active_app()
-        if feedback_cfg.get("start_sound", True):
-            beep(880)
+        # Iniciar grabación primero para no perder el inicio del audio
         recorder.start()
+        if feedback_cfg.get("start_sound", True):
+            beep(_BEEP_START)
         print("● Grabando...")
+        # Detectar app activa en background (solo se necesita al pegar, no ahora)
+        target_app = None
+        threading.Thread(target=lambda: _set_target_app(), daemon=True).start()
 
         # Watchdog de hardware: comprueba el estado físico de la tecla
         # cada 200ms. Si el OS perdió el evento de release, lo detecta aquí.

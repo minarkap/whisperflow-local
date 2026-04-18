@@ -34,6 +34,6 @@ def paste_text(text: str, target_app=None):
     _keyboard.release(Key.cmd)
 
     # Espera a que la app procese el pegado antes de restaurar el portapapeles
-    time.sleep(0.4)
+    time.sleep(0.15)
     pb.clearContents()
     pb.setString_forType_(old, _PBOARD_TYPE)
