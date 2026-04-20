@@ -81,7 +81,10 @@ _BEEP_START = _make_beep(880, 0.06)
 _BEEP_STOP  = _make_beep(440, 0.06)
 
 def beep(wave: np.ndarray):
-    _sd.play(wave, samplerate=_BEEP_SR)
+    try:
+        _sd.play(wave, samplerate=_BEEP_SR)
+    except Exception:
+        pass
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
@@ -120,9 +123,10 @@ def main():
         print(f"Error cargando el modelo: {e}")
         sys.exit(1)
 
-    state      = State.IDLE
-    state_lock = threading.Lock()
-    target_app = None
+    state           = State.IDLE
+    state_lock      = threading.Lock()
+    target_app      = None
+    _transcribe_sem = threading.Semaphore(1)
 
     def _set_idle():
         nonlocal state
@@ -143,8 +147,7 @@ def main():
         secs = len(audio) / audio_cfg["sample_rate"]
         print(f"■ Grabación parada ({secs:.1f}s). Transcribiendo...")
 
-        # El watchdog suele dispararse en pulsaciones accidentales — umbral más alto
-        min_secs = 1.5 if watchdog else 1.0
+        min_secs = 0.5
         if secs < min_secs:
             print("Audio demasiado corto, ignorando.")
             _set_idle()
@@ -153,24 +156,28 @@ def main():
         app = target_app
 
         def _work():
-            # Timeout: 8s por segundo de audio + 6s de overhead.
-            # Si Whisper se cuelga en una alucinación, desbloqueamos el estado
-            # aunque el hilo interno siga corriendo en background.
-            max_wait = secs * 8 + 6
-            result: list = [None]
-            exc:    list = [None]
-
-            def _transcribe():
-                try:
-                    result[0] = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
-                except Exception as e:
-                    exc[0] = e
-
-            t = threading.Thread(target=_transcribe, daemon=True)
-            t.start()
-            t.join(timeout=max_wait)
-
+            if not _transcribe_sem.acquire(blocking=False):
+                print("⚠ Transcripción anterior aún en curso, descartando.")
+                _set_idle()
+                return
             try:
+                # Timeout: 8s por segundo de audio + 6s de overhead.
+                # Si Whisper se cuelga en una alucinación, desbloqueamos el estado
+                # aunque el hilo interno siga corriendo en background.
+                max_wait = secs * 8 + 6
+                result: list = [None]
+                exc:    list = [None]
+
+                def _transcribe():
+                    try:
+                        result[0] = transcriber.transcribe(audio, sample_rate=audio_cfg["sample_rate"])
+                    except Exception as e:
+                        exc[0] = e
+
+                t = threading.Thread(target=_transcribe, daemon=True)
+                t.start()
+                t.join(timeout=max_wait)
+
                 if t.is_alive():
                     print(f"⏱ Transcripción cancelada por timeout ({max_wait:.0f}s).")
                     return
@@ -187,6 +194,7 @@ def main():
             except Exception as e:
                 print(f"Error en transcripción: {e}")
             finally:
+                _transcribe_sem.release()
                 _set_idle()
 
         threading.Thread(target=_work, daemon=True).start()
@@ -199,6 +207,7 @@ def main():
         nonlocal state, target_app
         with state_lock:
             if state != State.IDLE:
+                print(f"⚠ Ocupado ({state.name}), ignorando.")
                 return
             state = State.RECORDING
         # Iniciar grabación primero para no perder el inicio del audio
